@@ -1,11 +1,3 @@
-# Stage-2: Deploy Stages for Dev & QA
-# Deployment-1: Deploy Dev AKS Cluster
-## Step-1: Define Variables for environments
-## Step-2: Download SSH Secure File
-## Step-3: Terraform Initialize (State Storage to store in Azure Storage Account for Dev AKS Cluster)
-## Step-4: Terraform Plan (Create Plan)
-## Step-5: Terraform Apply (Use the plan created in previous step)
-
 # Define Variables
 trigger:
   - master
@@ -19,10 +11,6 @@ variables:
 - name: QA_ENVIRONMENT
   value: qa 
 
-# Stage-1: Terraform Validate Stage
-## Step-1: Publish Artifacts to Pipeline (Pipeline artifacts provide a way to share files between stages in a pipeline or between different pipelines. )
-## Step-2: Install Latest Terraform (Ideally not needed if we use default Ubuntu Agents)
-## Step-3: Validate Terraform Manifests (terraform init, terraform validate)
 
 stages:
 - stage: TerraformValidate
@@ -58,14 +46,6 @@ stages:
           workingDirectory: '$(System.DefaultWorkingDirectory)/terraform-manifests'
           allowTelemetryCollection: false   
 
-# Stage-2: Deploy Stages for Dev & QA
-# Deployment-1: Deploy Dev AKS Cluster
-## Step-1: Define Variables for environments
-## Step-2: Download SSH Secure File
-## Step-3: Terraform Initialize (State Storage to store in Azure Storage Account for Dev AKS Cluster)
-## Step-4: Terraform Plan (Create Plan)
-## Step-5: Terraform Apply (Use the plan created in previous ste 
-
 
 - stage: DeployAKSCluster
   jobs:
@@ -78,6 +58,10 @@ stages:
         runOnce:
           deploy:
             steps:
+              - task: TerraformInstaller@0
+                displayName: Terraform Install
+                inputs:
+                  terraformVersion: 'latest'
               - task: DownloadSecureFile@1
                 displayName: Download SSH Key
                 name: sshkey
@@ -87,7 +71,7 @@ stages:
                 displayName: Terraform Init
                 inputs:
                   command: 'init'
-                  workingDirectory: '$(System.DefaultWorkingDirectory)/terraform-manifests-out'
+                  workingDirectory: '$(Pipeline.Workspace)/terraform-manifests-out'
                   backendType: 'azurerm'
                   backendServiceArm: 'terraform-aks-azurerm-svc-con'
                   backendAzureRmResourceGroupName: 'bryn1u'
@@ -111,3 +95,46 @@ stages:
                   commandOptions: '$(Pipeline.Workspace)/terraform-manifests-out/$(DEV_ENVIRONMENT)-$(Build.BuildId).out'
                   allowTelemetryCollection: false
                   
+### Od hindusa i przerobic na swoje
+    - deployment: DeployQAAKSCluster
+      displayName: DeployQAAKSCluster
+      pool:
+        vmImage: 'ubuntu-latest'
+      environment: $(QA_ENVIRONMENT)      
+      strategy:
+        runOnce:
+          deploy:
+            steps:            
+            - task: DownloadSecureFile@1
+              displayName: Download SSH Key
+              name: sshkey
+              inputs:
+                secureFile: 'id_rsa.pub'
+            - task: TerraformCLI@0
+              displayName: Terraform Init
+              inputs:
+                command: 'init'
+                workingDirectory: '$(Pipeline.Workspace)/terraform-manifests-out'
+                backendType: 'azurerm'
+                backendServiceArm: 'terraform-aks-azurerm-svc-con'
+                backendAzureRmResourceGroupName: 'terraform-storage-rg'
+                backendAzureRmStorageAccountName: 'terraformstatexlrwdrzs'
+                backendAzureRmContainerName: 'tfstatefiles'
+                backendAzureRmKey: 'aks-$(QA_ENVIRONMENT).tfstate'
+                allowTelemetryCollection: false
+            - task: TerraformCLI@0
+              displayName: Terraform Plan
+              inputs:
+                command: 'plan'
+                workingDirectory: '$(Pipeline.Workspace)/terraform-manifests-out'
+                environmentServiceName: 'terraform-aks-azurerm-svc-con'
+                commandOptions: '-var ssh_public_key=$(sshkey.secureFilePath) -var environment=$(QA_ENVIRONMENT) -out $(Pipeline.Workspace)/terraform-manifests-out/$(QA_ENVIRONMENT)-$(Build.BuildId).out'
+                allowTelemetryCollection: false
+            - task: TerraformCLI@0
+              displayName: Terraform Apply
+              inputs:
+                command: 'apply'
+                workingDirectory: '$(Pipeline.Workspace)/terraform-manifests-out'
+                environmentServiceName: 'terraform-aks-azurerm-svc-con'
+                commandOptions: '$(Pipeline.Workspace)/terraform-manifests-out/$(QA_ENVIRONMENT)-$(Build.BuildId).out'
+                allowTelemetryCollection: false
