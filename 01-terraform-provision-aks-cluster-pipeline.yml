@@ -58,6 +58,11 @@ stages:
         runOnce:
           deploy:
             steps:
+              - task: DownloadPipelineArtifact@2
+                displayName: 'Download Terraform Manifests'
+                inputs:
+                  artifact: 'terraform-manifests-out'
+                  path: '$(Pipeline.Workspace)'
               - task: TerraformInstaller@0
                 displayName: Terraform Install
                 inputs:
@@ -105,6 +110,16 @@ stages:
         runOnce:
           deploy:
             steps:            
+   
+            - task: DownloadPipelineArtifact@2
+              displayName: 'Download Terraform Manifests'
+              inputs:
+                artifact: 'terraform-manifests-out'
+                path: '$(Pipeline.Workspace)'
+            - task: TerraformInstaller@0
+              displayName: Terraform Install
+              inputs:
+                terraformVersion: 'latest'
             - task: DownloadSecureFile@1
               displayName: Download SSH Key
               name: sshkey
